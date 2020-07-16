@@ -13,7 +13,7 @@
 
 ###### A query to retrieve the last 12 months of temperature observation data (TOBS) was defined, in order to analyze the frecuency of the data, specifically for the most active station (USC00519281):
 
-![Tobs_Histogram](Images/histrogram.png)
+![Tobs_Histogram](Images/histogram.png)
 
 #### Climate App
 
