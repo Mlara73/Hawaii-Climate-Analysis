@@ -7,13 +7,13 @@
 
 ###### A query to retrieve the last 12 months of precipitation data was defined, in order to see the behaviour of this variable against time (Dates):
 
-![SQLAlquemyChallenge](Images/prcp.PNG)
+![Precipitation](Images/prcp.PNG)
 
 #### Station Analysis
 
 ###### A query to retrieve the last 12 months of temperature observation data (TOBS) was defined, in order to analyze the frecuency of the data, specifically for the most active station (USC00519281):
 
-![SQLAlquemyChallenge](Images/histrogram.PNG)
+![Tobs_Histogram](Images/histrogram.PNG)
 
 #### Climate App
 
