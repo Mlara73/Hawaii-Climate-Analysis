@@ -37,26 +37,33 @@ def welcome():
     # Create session (link) from Python to the DB
     session = Session(engine)
 
-    # Query to call the last date supported
-    last_date_most_active_st = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
-    last_date_unpacked_most_active= last_date_most_active_st[0]
-
     """List all available api routes."""
+
+    # Query to call the last date supported
+    last_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+    last_date_unpacked= last_date[0]
+
     return (
         f"Available Routes:<br/>"
-        f"Precipitation records per date<br/>"
+
+        f"1. Precipitation records per date<br/>"
         f"/api/v1.0/precipitation<br/>"
-        f"List of Hawaii Stations<br/>"
+
+        f"2. List of Hawaii Stations<br/>"
         f"/api/v1.0/stations<br/>"
-        f"Most active station temperature observations during the last year<br/>"
+
+        f"3. Most active station temperature observations during the last year<br/>"
         f"/api/v1.0/tobs<br/>"
-        f"Temperature normals (TMIN, TMAX, TAVG) from a specific date<br/>"
+
+        f"4. Temperature normals (TMIN, TMAX, TAVG) from a specific date<br/>"
         f"/api/v1.0/start_date<br/>"
-        f"Temperature normals (TMIN, TMAX, TAVG) in date range<br/>"
+
+        f"5. Temperature normals (TMIN, TMAX, TAVG) in date range<br/>"
         f"/api/v1.0/start_date/end_date<br/>"
 
         f" Important Note: Dates must be submitted in yyyy-mm-dd<br/>"
-        f"Last date supported is {last_date_unpacked_most_active}"
+
+        f"Last date supported is {last_date_unpacked}"
     )
 
 # Precipitation date:prcp data
@@ -133,6 +140,7 @@ def tobs():
     last_year_most_active_st = session.query(Measurement.date, Measurement.tobs).\
                         filter(Measurement.date >= one_year_before_date_most_active_st).\
                         filter(Measurement.station == most_active_st).order_by(Measurement.date).all()
+    session.close()
 
     # Creating a list of dictionaries
     active_sts_list = []
@@ -141,69 +149,116 @@ def tobs():
         active_sts_dict[date] = tobs
         active_sts_list.append(active_sts_dict)
 
-    session.close()
-
     return jsonify(active_sts_list)
 
-
+#TOBS normals from specific date
 @app.route("/api/v1.0/<start>")
 def startdate(start):
+
+     #Ensuring date format
+    try:
+        initial_date = dt.datetime.strptime(start, '%Y-%m-%d').date()
+    except ValueError:
+
+        raise ValueError("Incorrect data format, should be YYYY-MM-DD")
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
-    initial_date = dt.datetime.strptime(start, '%Y-%m-%d')
-
     """Return a list for temperature normals records"""
-  
-    # Query temperature normals from a specific date
-    sel = [func.min(Measurement.tobs), func.max(Measurement.tobs), func.avg(Measurement.tobs)]
+    
+    # Defining first date in dataset
+    
+    first_date = session.query(Measurement.date).order_by(Measurement.date).first()
+    first_date_unpacked= dt.datetime.strptime(first_date[0], '%Y-%m-%d').date()
 
-    temp_records_onedate = session.query(*sel).filter(Measurement.date >= initial_date).all()
+    last_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+    last_date_unpacked = dt.datetime.strptime(last_date[0], '%Y-%m-%d').date()
 
-    session.close()
+    # Condition if user define a date that is outside of the dataset scope:
+    if initial_date < first_date_unpacked:
+        return jsonify({"error": f"Date not found, first date supported is: {first_date_unpacked} ."}), 404
+    elif initial_date > last_date_unpacked:
+        return jsonify({"error": f"Date not found, last date supported is: {last_date_unpacked} ."}), 404
 
-    # Create a dictionary from the row data and append to a list of temperature_list
-    temperature_list = []
-    for tmin, tavg, tmax in temp_records_onedate:
-        temperature_dict = {}
-        temperature_dict["TMIN"] = tmin
-        temperature_dict["TAVG"] = tavg
-        temperature_dict["TMAX"] = tmax
-        temperature_list.append(temperature_dict)
+    
+    else:
 
-    return jsonify(temperature_list)                
+        # Query temperature normals from a specific date
 
-# TOBS normals from a specific date
+        sel = [func.min(Measurement.tobs), func.max(Measurement.tobs), func.avg(Measurement.tobs)]
+
+        temp_records_onedate = session.query(*sel).filter(Measurement.date >= initial_date).all()
+
+        session.close()
+
+        # Create a dictionary from the row data and append to a list of temperature_list
+        temperature_list = []
+        for tmin, tavg, tmax in temp_records_onedate:
+            temperature_dict = {}
+            temperature_dict["TMIN"] = tmin
+            temperature_dict["TAVG"] = tavg
+            temperature_dict["TMAX"] = tmax
+            temperature_list.append(temperature_dict)
+
+        return jsonify(temperature_list)
+    
+           
+#TOBS normals from specific dates
 @app.route("/api/v1.0/<start_date>/<end_date>")
 def start_end_date(start_date, end_date):
+
+    #Ensuring date format
+    try:
+        start_date_mod = dt.datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_mod = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
+
+    except ValueError:
+        raise ValueError("Incorrect data format, should be YYYY-MM-DD")
 
     # Create session (link) from Python to the DB
     session = Session(engine)
 
     """Return a list for temperature normals records in a specific range of time"""
 
-    # Ensuring date format
-    start_date_mod = dt.datetime.strptime(start_date, '%Y-%m-%d')
-    end_date_mod = dt.datetime.strptime(end_date, "%Y-%m-%d")
+        # Defining first date in dataset
     
-    # Query tobs normals bewteen a defined dates range
-    sel_dates = [func.min(Measurement.tobs), func.max(Measurement.tobs), func.avg(Measurement.tobs)]
+    start_date = session.query(Measurement.date).order_by(Measurement.date).first()
+    start_date_unpacked = dt.datetime.strptime(start_date[0], '%Y-%m-%d').date()
 
-    temp_records_betwdates = session.query(*sel_dates).filter(Measurement.date >= start_date_mod).\
-                            filter(Measurement.date <= end_date_mod).all()
+    last_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+    last_date_unpacked = dt.datetime.strptime(last_date[0], '%Y-%m-%d').date()
 
-    session.close()
+    # Condition if user define dates that are outside of the dataset scope:
 
-    # Create a dictionary from the row data and append to a temperature_list_dates
-    temperature_list_dates = []
-    for t_min, t_avg, t_max in temp_records_betwdates:
-        temperature_dict_dates = {}
-        temperature_dict_dates["TMIN"] = t_min
-        temperature_dict_dates["TAVG"] = t_avg
-        temperature_dict_dates["TMAX"] = t_max
-        temperature_list_dates.append(temperature_dict_dates)
+    if end_date_mod > last_date_unpacked and start_date_mod < start_date_unpacked:
+        return jsonify({"error": f"Start and End Date not found, first and last date supported are: {start_date_unpacked} and {last_date_unpacked}."}), 404
 
-    return jsonify(temperature_list_dates)
+    elif start_date_mod < start_date_unpacked:
+        return jsonify({"error": f"Start Date not found, first date supported is: {start_date_unpacked} ."}), 404
+
+    elif end_date_mod > last_date_unpacked:
+        return jsonify({"error": f"Last Date not found, first date supported is: {last_date_unpacked} ."}), 404
+
+    else:
+    
+        # Query tobs normals bewteen a defined dates range
+        sel_dates = [func.min(Measurement.tobs), func.max(Measurement.tobs), func.avg(Measurement.tobs)]
+
+        temp_records_betwdates = session.query(*sel_dates).filter(Measurement.date >= start_date_mod).\
+                                filter(Measurement.date <= end_date_mod).all()
+
+        session.close()
+
+        # Create a dictionary from the row data and append to a temperature_list_dates
+        temperature_list_dates = []
+        for t_min, t_avg, t_max in temp_records_betwdates:
+            temperature_dict_dates = {}
+            temperature_dict_dates["TMIN"] = t_min
+            temperature_dict_dates["TAVG"] = t_avg
+            temperature_dict_dates["TMAX"] = t_max
+            temperature_list_dates.append(temperature_dict_dates)
+
+        return jsonify(temperature_list_dates)
 
 if __name__ == '__main__':
     app.run(debug=True)
